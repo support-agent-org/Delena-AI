@@ -1,0 +1,131 @@
+/**
+ * CLI Runner
+ *
+ * Main CLI application loop.
+ */
+
+import "dotenv/config";
+import { createInterface } from "readline";
+
+import { SupportAgent } from "../agent";
+import { showWelcome } from "./ui";
+import {
+  createSession,
+  handleModelCommand,
+  handleModeCommand,
+  handleProviderSelection,
+  handleApiKeyEntry,
+  handleModelSelection,
+  handleBack,
+  handleQuery,
+} from "./commands";
+
+/**
+ * Runs the CLI application
+ */
+export async function runCLI(): Promise<void> {
+  // Initialize agent
+  const agent = new SupportAgent();
+  await agent.start();
+
+  // Create readline interface
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: "support-agent> ",
+  });
+
+  // Show welcome message
+  showWelcome(agent);
+  rl.prompt();
+
+  // Initialize session state
+  const session = createSession();
+
+  // Handle input
+  rl.on("line", async (line) => {
+    const input = line.trim();
+
+    // Handle back/cancel in any selection state
+    if (input.toLowerCase() === "back" || input === "0") {
+      if (session.state !== "normal") {
+        handleBack(session, agent);
+        rl.prompt();
+        return;
+      }
+    }
+
+    // Handle state-specific input
+    switch (session.state) {
+      case "selecting_provider":
+        handleProviderSelection(input, agent, session);
+        rl.prompt();
+        return;
+
+      case "entering_api_key":
+        handleApiKeyEntry(input, agent, session);
+        rl.prompt();
+        return;
+
+      case "selecting_model":
+        handleModelSelection(input, agent, session);
+        rl.prompt();
+        return;
+    }
+
+    // Normal state - handle commands
+    if (input.startsWith("/exit") || input.startsWith("/quit")) {
+      rl.close();
+      return;
+    }
+
+    if (input.startsWith("/model") || input.startsWith("/models")) {
+      try {
+        await handleModelCommand(agent, session);
+      } catch (e) {
+        console.error("Failed to list models:", e);
+      }
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith("/mode")) {
+      const args = input.split(" ")[1] || "";
+      await handleModeCommand(agent, args);
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith("/help")) {
+      showWelcome(agent);
+      rl.prompt();
+      return;
+    }
+
+    // Empty input
+    if (input === "") {
+      rl.prompt();
+      return;
+    }
+
+    // Unknown command
+    if (input.startsWith("/")) {
+      console.log("Unknown command. Type /help for available commands.");
+      rl.prompt();
+      return;
+    }
+
+    // Handle as query
+    await handleQuery(input, agent);
+    rl.prompt();
+  });
+
+  // Handle close
+  rl.on("close", async () => {
+    console.log("\nGoodbye!");
+    await agent.stop();
+    process.exit(0);
+  });
+}
+
+export default runCLI;

@@ -52,11 +52,17 @@ export function showProviderMenu(
 /**
  * Displays the model selection menu
  */
-export function showModelMenu(models: string[], providerName: string): void {
+export function showModelMenu(
+  models: string[],
+  providerName: string,
+  agent: SupportAgent,
+): void {
   console.log(`\nProvider: ${providerName}`);
   console.log("Select a model (enter 'back' or '0' to go back):\n");
   models.forEach((m, i) => {
-    console.log(`  ${i + 1}. ${m}`);
+    const fullModelId = `${providerName}/${m}`;
+    const freeLabel = agent.isModelFree(fullModelId) ? " (FREE)" : "";
+    console.log(`  ${i + 1}. ${m}${freeLabel}`);
   });
   console.log("");
 }

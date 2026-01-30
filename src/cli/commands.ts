@@ -134,11 +134,22 @@ export function handleApiKeyEntry(
 
 /**
  * Displays models for the selected provider
+ * Uses curated recommended models list for better UX
  */
 function showModelsForProvider(agent: SupportAgent, session: CLISession): void {
-  session.filteredModels = agent.filterModels(
-    session.selectedProvider!.models || {},
+  // Use recommended models if available, otherwise filter from available
+  const recommendedModels = agent.getRecommendedModels(
+    session.selectedProvider!.id,
   );
+
+  if (recommendedModels.length > 0) {
+    session.filteredModels = recommendedModels;
+  } else {
+    // Fallback to filtering available models
+    session.filteredModels = agent.filterModels(
+      session.selectedProvider!.models || {},
+    );
+  }
 
   if (session.filteredModels.length === 0) {
     console.log("No models found for this provider.");
@@ -146,7 +157,7 @@ function showModelsForProvider(agent: SupportAgent, session: CLISession): void {
     return;
   }
 
-  showModelMenu(session.filteredModels, session.selectedProvider!.id);
+  showModelMenu(session.filteredModels, session.selectedProvider!.id, agent);
   session.state = "selecting_model";
 }
 
@@ -200,9 +211,10 @@ export async function handleQuery(
 
   console.log("Thinking...");
   try {
-    const response = await agent.query(query, source);
-    console.log("\n" + response + "\n");
+    await agent.query(query, source);
+    // Response is streamed to console, just add final newline
+    console.log("");
   } catch (error) {
-    console.error("Error:", error);
+    console.error("\nError:", error);
   }
 }

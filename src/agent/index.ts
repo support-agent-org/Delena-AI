@@ -13,6 +13,8 @@ import {
   requiresApiKey,
   getApiKeyEnvVar,
   hasApiKey,
+  getRecommendedModels,
+  isModelFree,
   DEFAULT_MODEL,
   DEFAULT_THINKING_MODE,
   THINKING_CONFIGS,
@@ -53,6 +55,8 @@ export class SupportAgent {
   getApiKeyEnvVar = getApiKeyEnvVar;
   hasApiKey = hasApiKey;
   filterModels = filterModels;
+  getRecommendedModels = getRecommendedModels;
+  isModelFree = isModelFree;
 
   // ─────────────────────────────────────────────────────────────────
   // Model Management
@@ -138,7 +142,29 @@ export class SupportAgent {
   // ─────────────────────────────────────────────────────────────────
 
   /**
+   * Creates a promise that rejects after a timeout
+   */
+  private timeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`Request timed out after ${ms / 1000}s`));
+      }, ms);
+
+      promise
+        .then((value) => {
+          clearTimeout(timer);
+          resolve(value);
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+  }
+
+  /**
    * Processes a user query and returns the AI response
+   * Uses event-based streaming for proper response handling
    */
   async query(input: string, source?: string): Promise<string> {
     if (!this.client) {
@@ -163,30 +189,101 @@ export class SupportAgent {
     // Parse model string "provider/model"
     const [providerID, modelID] = this._currentModel.split("/");
 
-    const payload = {
+    // Subscribe to events first
+    const events = await this.client.event.subscribe();
+
+    // Collect response text from events
+    let responseText = "";
+    let sessionCompleted = false;
+    let sessionError: string | null = null;
+    const currentSessionId = this.currentSessionId;
+
+    // Send the prompt asynchronously
+    await this.client.session.promptAsync({
       path: { id: this.currentSessionId },
       body: {
         model: { providerID: providerID!, modelID: modelID! },
         parts: [{ type: "text" as const, text: fullQuery }],
       },
-    };
+    });
+
+    // Set up timeout
+    const timeout = setTimeout(() => {
+      sessionError = "Request timed out after 60s";
+      sessionCompleted = true;
+    }, 60000);
+
+    // Start response on new line
+    let hasStartedPrinting = false;
 
     try {
-      const response = await this.client.session.prompt(payload);
+      // Listen for events
+      for await (const event of events.stream) {
+        // Only process events for our session
+        const props = event.properties as any;
 
-      if (!response.data || !response.data.parts) {
-        throw new Error("Failed to get response");
+        if (
+          props?.sessionID !== currentSessionId &&
+          props?.info?.sessionID !== currentSessionId
+        ) {
+          // Skip events for other sessions
+          if (
+            event.type !== "message.part.updated" &&
+            event.type !== "session.idle"
+          ) {
+            continue;
+          }
+        }
+
+        switch (event.type) {
+          case "message.part.updated":
+            // Handle streaming text updates
+            if (
+              props?.part?.type === "text" &&
+              props?.part?.sessionID === currentSessionId
+            ) {
+              // Use delta if available, otherwise use full text
+              if (props.delta) {
+                if (!hasStartedPrinting) {
+                  process.stdout.write("\n"); // Start on new line
+                  hasStartedPrinting = true;
+                }
+                responseText += props.delta;
+                process.stdout.write(props.delta); // Stream to console
+              } else if (props.part.text && responseText === "") {
+                responseText = props.part.text;
+              }
+            }
+            break;
+
+          case "session.idle":
+            // Session has completed processing
+            if (props?.sessionID === currentSessionId) {
+              sessionCompleted = true;
+            }
+            break;
+
+          case "session.error":
+            // Handle errors
+            if (props?.sessionID === currentSessionId || !props?.sessionID) {
+              sessionError =
+                props?.error?.data?.message || "Unknown error occurred";
+              sessionCompleted = true;
+            }
+            break;
+        }
+
+        if (sessionCompleted) break;
       }
-
-      // Extract text from response parts
-      return response.data.parts
-        .filter((p: { type: string }) => p.type === "text")
-        .map((p: { text: string }) => p.text)
-        .join("\n");
-    } catch (error) {
-      console.error("Query error:", error);
-      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
+
+    if (sessionError) {
+      throw new Error(sessionError);
+    }
+
+    return responseText || "(No response received)";
   }
 }
 

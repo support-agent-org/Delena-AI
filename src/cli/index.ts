@@ -18,6 +18,11 @@ import {
   handleModelSelection,
   handleBack,
   handleQuery,
+  handleLoadCommand,
+  handleSaveCommand,
+  handleResumeCommand,
+  handleSessionsCommand,
+  handleStatusCommand,
 } from "./commands";
 
 /**
@@ -96,6 +101,39 @@ export async function runCLI(): Promise<void> {
       return;
     }
 
+    if (input.startsWith("/load")) {
+      const args = input.slice(5).trim();
+      await handleLoadCommand(args, session);
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith("/save")) {
+      const args = input.slice(5).trim();
+      await handleSaveCommand(args, agent, session);
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith("/resume")) {
+      const args = input.slice(7).trim();
+      await handleResumeCommand(args, agent, session);
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith("/sessions")) {
+      await handleSessionsCommand();
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith("/status")) {
+      handleStatusCommand(agent, session);
+      rl.prompt();
+      return;
+    }
+
     if (input.startsWith("/help")) {
       showWelcome(agent);
       rl.prompt();
@@ -116,7 +154,7 @@ export async function runCLI(): Promise<void> {
     }
 
     // Handle as query
-    await handleQuery(input, agent);
+    await handleQuery(input, agent, session);
     rl.prompt();
   });
 

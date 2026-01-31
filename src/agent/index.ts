@@ -82,6 +82,24 @@ export class SupportAgent {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // Session Management
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Gets the current session ID
+   */
+  getCurrentSessionId(): string | null {
+    return this.currentSessionId;
+  }
+
+  /**
+   * Sets the session ID (for resuming saved sessions)
+   */
+  setSessionId(sessionId: string): void {
+    this.currentSessionId = sessionId;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // Provider Discovery
   // ─────────────────────────────────────────────────────────────────
 

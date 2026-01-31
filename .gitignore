@@ -35,3 +35,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # executables
 *.exe
+
+# Support Agent data (sessions, cached repos)
+.support-agent

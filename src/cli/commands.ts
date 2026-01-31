@@ -111,12 +111,13 @@ export function handleProviderSelection(
 
 /**
  * Handles API key entry
+ * Restarts the server so it picks up the new environment variable
  */
-export function handleApiKeyEntry(
+export async function handleApiKeyEntry(
   input: string,
   agent: SupportAgent,
   session: CLISession,
-): void {
+): Promise<void> {
   if (input.length <= 10) {
     console.log("Invalid API key (too short). Try again or enter 'back'.");
     return;
@@ -127,6 +128,9 @@ export function handleApiKeyEntry(
   if (envVar) {
     process.env[envVar] = input;
     console.log("✓ API key set for this session.");
+
+    // Restart the server so it picks up the new API key
+    await agent.restart();
   }
 
   showModelsForProvider(agent, session);

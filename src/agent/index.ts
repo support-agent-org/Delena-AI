@@ -137,6 +137,17 @@ export class SupportAgent {
     this.currentSessionId = null;
   }
 
+  /**
+   * Restarts the server (needed after setting new API keys)
+   * This ensures the server picks up new environment variables
+   */
+  async restart(): Promise<void> {
+    console.log("Restarting server to apply new configuration...");
+    await this.stop();
+    await this.start();
+    console.log("Server restarted successfully.");
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // Query Processing
   // ─────────────────────────────────────────────────────────────────

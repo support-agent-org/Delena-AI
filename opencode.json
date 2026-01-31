@@ -23,7 +23,7 @@
     "google": {
       "id": "google",
       "npm": "@ai-sdk/google",
-      "env": ["GOOGLE_API_KEY"]
+      "env": ["GOOGLE_GENERATIVE_AI_API_KEY"]
     }
   }
 }

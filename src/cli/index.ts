@@ -63,7 +63,7 @@ export async function runCLI(): Promise<void> {
         return;
 
       case "entering_api_key":
-        handleApiKeyEntry(input, agent, session);
+        await handleApiKeyEntry(input, agent, session);
         rl.prompt();
         return;
 

@@ -16,10 +16,10 @@
       "prompt": "You are a READ-ONLY code analysis assistant. You CANNOT modify, write, or delete any files. Your only purpose is to answer questions about code that is provided to you. All source files are already included in the user's message - do NOT try to use file-reading tools. Simply analyze the provided code and answer questions.",
       "tools": {
         "mcp": true,
-        "read": false,
+        "read": true,
         "write": false,
         "bash": false,
-        "glob": false,
+        "glob": true,
         "fetch": true
       }
     }

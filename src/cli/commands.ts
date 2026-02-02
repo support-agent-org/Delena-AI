@@ -6,7 +6,7 @@
 
 import type { Interface as ReadlineInterface } from "readline";
 import type { SupportAgent } from "../agent";
-import type { CLIState, Provider, ThinkingMode } from "../types";
+import type { CLIState, Provider, ThinkingMode, RepoContext, TokenUsage } from "../types";
 import { PROVIDER_API_KEYS } from "../config";
 import {
   showProviderMenu,
@@ -15,6 +15,16 @@ import {
   showModeHelp,
 } from "./ui";
 import { parseInput } from "./utils";
+import {
+  loadRepository,
+  readAllSourceFiles,
+  saveSession,
+  loadSession as loadSessionFromStore,
+  listSessions,
+  formatSessionInfo,
+  buildRepoContext,
+  formatTokenUsage,
+} from "../services";
 
 /**
  * CLI Session state
@@ -24,6 +34,10 @@ export interface CLISession {
   providers: Provider[];
   selectedProvider: Provider | null;
   filteredModels: string[];
+  // New fields for repo and session management
+  repoContext: RepoContext | null;
+  lastTokenUsage: TokenUsage | null;
+  sessionName: string | null;
 }
 
 /**
@@ -35,6 +49,9 @@ export function createSession(): CLISession {
     providers: [],
     selectedProvider: null,
     filteredModels: [],
+    repoContext: null,
+    lastTokenUsage: null,
+    sessionName: null,
   };
 }
 
@@ -210,15 +227,203 @@ export function handleBack(session: CLISession, agent: SupportAgent): void {
 export async function handleQuery(
   input: string,
   agent: SupportAgent,
+  session: CLISession,
 ): Promise<void> {
   const { source, query } = parseInput(input);
 
   console.log("Thinking...");
   try {
-    await agent.query(query, source);
-    // Response is streamed to console, just add final newline
-    console.log("");
+    // Build query with repo context if available
+    let contextualQuery = query;
+    if (session.repoContext) {
+      const repoContextStr = buildRepoContext(
+        session.repoContext.name,
+        session.repoContext.map,
+        session.repoContext.keyFiles
+      );
+      contextualQuery = `${repoContextStr}\n\n## User Question\n${query}`;
+    }
+
+    const result = await agent.query(contextualQuery, source);
+
+    // Display token usage if available
+    if (session.lastTokenUsage) {
+      console.log(
+        `\n${formatTokenUsage(
+          session.lastTokenUsage.inputTokens,
+          session.lastTokenUsage.outputTokens
+        )}`
+      );
+    }
   } catch (error) {
     console.error("\nError:", error);
   }
 }
+
+/**
+ * Handles the /load command for loading repositories
+ */
+export async function handleLoadCommand(
+  args: string,
+  session: CLISession,
+): Promise<void> {
+  if (!args) {
+    console.log("Usage: /load <path|url>");
+    console.log("Examples:");
+    console.log("  /load ./src");
+    console.log("  /load https://github.com/user/repo");
+    return;
+  }
+
+  console.log(`Loading repository: ${args}...`);
+
+  try {
+    const result = await loadRepository(args);
+    const sourceFiles = await readAllSourceFiles(result.path);
+
+    session.repoContext = {
+      path: result.path,
+      name: result.name,
+      map: result.repoMap,
+      keyFiles: sourceFiles,
+    };
+
+    console.log(`\n✓ Repository loaded: ${result.name}`);
+    console.log(`  Files: ${result.fileCount}`);
+    console.log(`  Path: ${result.path}`);
+    console.log(`\nYou can now ask questions about this repository.`);
+    console.log(`The agent is READ-ONLY and cannot modify any files.\n`);
+  } catch (error) {
+    console.error("Failed to load repository:", error);
+  }
+}
+
+/**
+ * Handles the /save command for saving sessions
+ */
+export async function handleSaveCommand(
+  args: string,
+  agent: SupportAgent,
+  session: CLISession,
+): Promise<void> {
+  if (!args) {
+    console.log("Usage: /save <session-name>");
+    return;
+  }
+
+  const sessionId = agent.getCurrentSessionId();
+  if (!sessionId) {
+    console.log("No active session to save. Start a conversation first.");
+    return;
+  }
+
+  await saveSession(
+    args,
+    sessionId,
+    session.repoContext?.path,
+    session.repoContext?.name
+  );
+
+  session.sessionName = args;
+}
+
+/**
+ * Handles the /resume command for resuming sessions
+ */
+export async function handleResumeCommand(
+  args: string,
+  agent: SupportAgent,
+  session: CLISession,
+): Promise<void> {
+  if (!args) {
+    console.log("Usage: /resume <session-name>");
+    console.log("Use /sessions to see available sessions.");
+    return;
+  }
+
+  const savedSession = await loadSessionFromStore(args);
+  if (!savedSession) {
+    console.log(`Session "${args}" not found.`);
+    console.log("Use /sessions to see available sessions.");
+    return;
+  }
+
+  // Restore session ID in agent
+  agent.setSessionId(savedSession.sessionId);
+  session.sessionName = savedSession.name;
+
+  // Restore repo context if available
+  if (savedSession.repoPath) {
+    console.log(`Restoring repository context: ${savedSession.repoName}...`);
+    try {
+      const result = await loadRepository(savedSession.repoPath);
+      const sourceFiles = await readAllSourceFiles(result.path);
+
+      session.repoContext = {
+        path: result.path,
+        name: result.name,
+        map: result.repoMap,
+        keyFiles: sourceFiles,
+      };
+
+      console.log(`✓ Repository context restored: ${result.name}`);
+    } catch (error) {
+      console.log(`Warning: Could not restore repo context: ${error}`);
+    }
+  }
+
+  console.log(`✓ Session "${args}" resumed.`);
+}
+
+/**
+ * Handles the /sessions command to list saved sessions
+ */
+export async function handleSessionsCommand(): Promise<void> {
+  const sessions = await listSessions();
+
+  if (sessions.length === 0) {
+    console.log("No saved sessions.");
+    console.log("Use /save <name> to save the current session.");
+    return;
+  }
+
+  console.log("Saved sessions:");
+  for (const session of sessions) {
+    console.log(`  - ${formatSessionInfo(session)}`);
+  }
+}
+
+/**
+ * Handles the /status command to show current session info
+ */
+export function handleStatusCommand(
+  agent: SupportAgent,
+  session: CLISession,
+): void {
+  console.log("\n=== Current Status ===");
+  console.log(`Model: ${agent.currentModel}`);
+  console.log(`Thinking Mode: ${agent.currentMode}`);
+
+  if (session.sessionName) {
+    console.log(`Session: ${session.sessionName}`);
+  }
+
+  if (session.repoContext) {
+    console.log(`Repository: ${session.repoContext.name}`);
+    console.log(`  Path: ${session.repoContext.path}`);
+  } else {
+    console.log("Repository: (none loaded)");
+  }
+
+  if (session.lastTokenUsage) {
+    console.log(
+      `Last Token Usage: ${formatTokenUsage(
+        session.lastTokenUsage.inputTokens,
+        session.lastTokenUsage.outputTokens
+      )}`
+    );
+  }
+
+  console.log("======================\n");
+}
+

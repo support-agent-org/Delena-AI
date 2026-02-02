@@ -47,4 +47,24 @@ export type CLIState =
   | "normal"
   | "selecting_provider"
   | "selecting_model"
-  | "entering_api_key";
+  | "entering_api_key"
+  | "loading_repo";
+
+/**
+ * Token usage statistics
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+/**
+ * Repository context for session
+ */
+export interface RepoContext {
+  path: string;
+  name: string;
+  map: string;
+  keyFiles?: Map<string, string>;
+}

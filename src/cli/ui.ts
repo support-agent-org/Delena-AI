@@ -23,21 +23,24 @@ export function showWelcome(agent: SupportAgent): void {
   console.log("─────────────────────────────────────────────");
   console.log("  Repository Commands:");
   console.log("    /load <path|url>  - Load a repository");
+  console.log("    /unload           - Unload current repository");
   console.log("    /status           - Show current status");
   console.log("");
   console.log("  Session Commands:");
   console.log("    /save <name>      - Save current session");
+  console.log("    /saveexit <name>  - Save session and unload repo");
   console.log("    /resume <name>    - Resume a saved session");
   console.log("    /sessions         - List saved sessions");
   console.log("");
   console.log("  Model Commands:");
   console.log("    /model            - Select an AI model");
   console.log("    /mode <level>     - Set thinking mode (low/medium/high)");
-  console.log("    /exit             - Exit the application");
+  console.log("    /exit             - Exit (prompts to save if unsaved)");
   console.log("");
-  console.log("  Usage:");
-  console.log("    /load ./my-project");
-  console.log("    What does this project do?");
+  console.log("  Workflow:");
+  console.log("    1. Load a project with /load ./my-project");
+  console.log("    2. Ask questions about the codebase");
+  console.log("    3. Save your session with /save my-analysis");
   console.log("─────────────────────────────────────────────");
   console.log("");
 }

@@ -7,7 +7,7 @@
 import { createOpencodeClient } from "@opencode-ai/sdk/client";
 import type { OpencodeClient } from "@opencode-ai/sdk";
 
-import type { ThinkingMode, Provider } from "../types";
+import type { ThinkingMode, Provider, QueryResult, TokenUsage } from "../types";
 import {
   ALLOWED_PROVIDERS,
   requiresApiKey,
@@ -192,10 +192,10 @@ export class SupportAgent {
   }
 
   /**
-   * Processes a user query and returns the AI response
+   * Processes a user query and returns the AI response with token usage
    * Uses event-based streaming for proper response handling
    */
-  async query(input: string, source?: string): Promise<string> {
+  async query(input: string, source?: string): Promise<QueryResult> {
     if (!this.client) {
       throw new Error("Agent not started");
     }
@@ -225,6 +225,7 @@ export class SupportAgent {
     let responseText = "";
     let sessionCompleted = false;
     let sessionError: string | null = null;
+    let tokenUsage: TokenUsage | undefined;
     const currentSessionId = this.currentSessionId;
 
     // Send the prompt asynchronously
@@ -258,7 +259,8 @@ export class SupportAgent {
           // Skip events for other sessions
           if (
             event.type !== "message.part.updated" &&
-            event.type !== "session.idle"
+            event.type !== "session.idle" &&
+            event.type !== "message.updated"
           ) {
             continue;
           }
@@ -281,6 +283,28 @@ export class SupportAgent {
                 process.stdout.write(props.delta); // Stream to console
               } else if (props.part.text && responseText === "") {
                 responseText = props.part.text;
+              }
+            }
+            break;
+
+          case "message.updated":
+            // Capture token usage from assistant message completion
+            // Structure: props.info.tokens and props.info.cost
+            if (
+              props?.info?.role === "assistant" &&
+              props?.info?.sessionID === currentSessionId &&
+              props?.info?.tokens
+            ) {
+              const tokens = props.info.tokens;
+              tokenUsage = {
+                inputTokens: tokens.input || tokens.prompt || 0,
+                outputTokens: tokens.output || tokens.completion || 0,
+                totalTokens:
+                  tokens.total || (tokens.input || 0) + (tokens.output || 0),
+              };
+              // Also capture cost if available
+              if (props.info.cost) {
+                (tokenUsage as any).cost = props.info.cost;
               }
             }
             break;
@@ -312,7 +336,10 @@ export class SupportAgent {
       throw new Error(sessionError);
     }
 
-    return responseText || "(No response received)";
+    return {
+      response: responseText || "(No response received)",
+      tokenUsage,
+    };
   }
 }
 

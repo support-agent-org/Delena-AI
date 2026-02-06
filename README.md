@@ -19,7 +19,7 @@ bun install
 ## Usage
 
 ```bash
-bun run index.ts
+bun run src/index.ts
 ```
 
 ### Commands

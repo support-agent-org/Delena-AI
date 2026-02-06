@@ -48,7 +48,9 @@ export type CLIState =
   | "selecting_provider"
   | "selecting_model"
   | "entering_api_key"
-  | "loading_repo";
+  | "loading_repo"
+  | "confirming_exit"
+  | "confirming_unload";
 
 /**
  * Token usage statistics
@@ -57,6 +59,14 @@ export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+}
+
+/**
+ * Result from a query including response and token usage
+ */
+export interface QueryResult {
+  response: string;
+  tokenUsage?: TokenUsage;
 }
 
 /**

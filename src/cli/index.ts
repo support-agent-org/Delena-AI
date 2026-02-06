@@ -23,6 +23,11 @@ import {
   handleResumeCommand,
   handleSessionsCommand,
   handleStatusCommand,
+  handleExitCommand,
+  handleExitConfirmation,
+  handleUnloadCommand,
+  handleUnloadConfirmation,
+  handleSaveExitCommand,
 } from "./commands";
 
 /**
@@ -76,11 +81,37 @@ export async function runCLI(): Promise<void> {
         handleModelSelection(input, agent, session);
         rl.prompt();
         return;
+
+      case "confirming_exit":
+        const { shouldExit, shouldSave } = handleExitConfirmation(
+          input,
+          session,
+        );
+        if (shouldExit) {
+          rl.close();
+          return;
+        }
+        if (shouldSave) {
+          console.log("Enter a name for this session:");
+          // Stay in normal mode, they can use /save <name>
+        }
+        rl.prompt();
+        return;
+
+      case "confirming_unload":
+        handleUnloadConfirmation(input, session);
+        rl.prompt();
+        return;
     }
 
     // Normal state - handle commands
     if (input.startsWith("/exit") || input.startsWith("/quit")) {
-      rl.close();
+      const { shouldExit } = handleExitCommand(session);
+      if (shouldExit) {
+        rl.close();
+        return;
+      }
+      rl.prompt();
       return;
     }
 
@@ -108,6 +139,13 @@ export async function runCLI(): Promise<void> {
       return;
     }
 
+    if (input.startsWith("/saveexit")) {
+      const args = input.slice(9).trim();
+      await handleSaveExitCommand(args, agent, session);
+      rl.prompt();
+      return;
+    }
+
     if (input.startsWith("/save")) {
       const args = input.slice(5).trim();
       await handleSaveCommand(args, agent, session);
@@ -130,6 +168,12 @@ export async function runCLI(): Promise<void> {
 
     if (input.startsWith("/status")) {
       handleStatusCommand(agent, session);
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith("/unload")) {
+      handleUnloadCommand(session);
       rl.prompt();
       return;
     }

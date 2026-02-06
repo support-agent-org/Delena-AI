@@ -6,7 +6,13 @@
 
 import type { Interface as ReadlineInterface } from "readline";
 import type { SupportAgent } from "../agent";
-import type { CLIState, Provider, ThinkingMode, RepoContext, TokenUsage } from "../types";
+import type {
+  CLIState,
+  Provider,
+  ThinkingMode,
+  RepoContext,
+  TokenUsage,
+} from "../types";
 import { PROVIDER_API_KEYS } from "../config";
 import {
   showProviderMenu,
@@ -229,31 +235,36 @@ export async function handleQuery(
   agent: SupportAgent,
   session: CLISession,
 ): Promise<void> {
+  // Require a loaded repository before processing queries
+  if (!session.repoContext) {
+    console.log("\n⚠️  No repository loaded!");
+    console.log("Please load a project first using:");
+    console.log("  /load <path>     - Load a local directory");
+    console.log("  /load <url>      - Clone and load a Git repository");
+    console.log("  /resume <name>   - Resume a saved session\n");
+    return;
+  }
+
   const { source, query } = parseInput(input);
 
   console.log("Thinking...");
   try {
-    // Build query with repo context if available
-    let contextualQuery = query;
-    if (session.repoContext) {
-      const repoContextStr = buildRepoContext(
-        session.repoContext.name,
-        session.repoContext.map,
-        session.repoContext.keyFiles
-      );
-      contextualQuery = `${repoContextStr}\n\n## User Question\n${query}`;
-    }
+    // Build query with repo context
+    const repoContextStr = buildRepoContext(
+      session.repoContext.name,
+      session.repoContext.map,
+      session.repoContext.keyFiles,
+    );
+    const contextualQuery = `${repoContextStr}\n\n## User Question\n${query}`;
 
     const result = await agent.query(contextualQuery, source);
 
-    // Display token usage if available
-    if (session.lastTokenUsage) {
-      console.log(
-        `\n${formatTokenUsage(
-          session.lastTokenUsage.inputTokens,
-          session.lastTokenUsage.outputTokens
-        )}`
-      );
+    // Ensure response ends with newline before prompt
+    console.log(""); // Add blank line after response
+
+    // Store token usage for /status display
+    if (result.tokenUsage) {
+      session.lastTokenUsage = result.tokenUsage;
     }
   } catch (error) {
     console.error("\nError:", error);
@@ -321,7 +332,7 @@ export async function handleSaveCommand(
     args,
     sessionId,
     session.repoContext?.path,
-    session.repoContext?.name
+    session.repoContext?.name,
   );
 
   session.sessionName = args;
@@ -417,13 +428,149 @@ export function handleStatusCommand(
 
   if (session.lastTokenUsage) {
     console.log(
-      `Last Token Usage: ${formatTokenUsage(
+      `Last Query: ${formatTokenUsage(
         session.lastTokenUsage.inputTokens,
-        session.lastTokenUsage.outputTokens
-      )}`
+        session.lastTokenUsage.outputTokens,
+      )}`,
     );
   }
 
   console.log("======================\n");
 }
 
+/**
+ * Handles the /exit command - shows confirmation if session has unsaved changes
+ * Returns true if should exit immediately, false if waiting for confirmation
+ */
+export function handleExitCommand(session: CLISession): {
+  shouldExit: boolean;
+} {
+  // If there's a loaded repo but no saved session, ask for confirmation
+  if (session.repoContext && !session.sessionName) {
+    console.log("\n⚠️  You have an unsaved session!");
+    console.log("Options:");
+    console.log("  y - Exit without saving");
+    console.log("  n - Cancel and return");
+    console.log("  s - Save session first (you'll be prompted for a name)\n");
+    session.state = "confirming_exit";
+    return { shouldExit: false };
+  }
+
+  // No unsaved work, exit immediately
+  return { shouldExit: true };
+}
+
+/**
+ * Handles confirmation input for exit
+ * Returns: { shouldExit, shouldSave, cancelled }
+ */
+export function handleExitConfirmation(
+  input: string,
+  session: CLISession,
+): { shouldExit: boolean; shouldSave: boolean } {
+  const answer = input.toLowerCase().trim();
+
+  if (answer === "y" || answer === "yes") {
+    session.state = "normal";
+    return { shouldExit: true, shouldSave: false };
+  }
+
+  if (answer === "n" || answer === "no") {
+    console.log("Exit cancelled.");
+    session.state = "normal";
+    return { shouldExit: false, shouldSave: false };
+  }
+
+  if (answer === "s" || answer === "save") {
+    session.state = "normal";
+    return { shouldExit: false, shouldSave: true };
+  }
+
+  console.log("Please enter 'y' (exit), 'n' (cancel), or 's' (save first).");
+  return { shouldExit: false, shouldSave: false };
+}
+
+/**
+ * Handles the /unload command - asks for confirmation first
+ */
+export function handleUnloadCommand(session: CLISession): void {
+  if (!session.repoContext) {
+    console.log("No repository is currently loaded.");
+    return;
+  }
+
+  console.log(`\n⚠️  Unload repository "${session.repoContext.name}"?`);
+  if (!session.sessionName) {
+    console.log("   Warning: You have not saved this session!");
+  }
+  console.log("   Enter 'y' to confirm or 'n' to cancel.\n");
+  session.state = "confirming_unload";
+}
+
+/**
+ * Handles confirmation for unload
+ */
+export function handleUnloadConfirmation(
+  input: string,
+  session: CLISession,
+): void {
+  const answer = input.toLowerCase().trim();
+
+  if (answer === "y" || answer === "yes") {
+    const repoName = session.repoContext?.name || "repository";
+    session.repoContext = null;
+    session.sessionName = null; // Clear session name too
+    session.state = "normal";
+    console.log(`✓ Repository "${repoName}" unloaded.`);
+    console.log("Use /load <path|url> to load a new repository.\n");
+    return;
+  }
+
+  if (answer === "n" || answer === "no") {
+    console.log("Unload cancelled.");
+    session.state = "normal";
+    return;
+  }
+
+  console.log("Please enter 'y' to confirm or 'n' to cancel.");
+}
+
+/**
+ * Handles the /saveexit command - saves session then unloads the repo
+ */
+export async function handleSaveExitCommand(
+  args: string,
+  agent: SupportAgent,
+  session: CLISession,
+): Promise<void> {
+  if (!args) {
+    console.log("Usage: /saveexit <session-name>");
+    return;
+  }
+
+  if (!session.repoContext) {
+    console.log("No repository is loaded. Nothing to save.");
+    return;
+  }
+
+  const sessionId = agent.getCurrentSessionId();
+  if (!sessionId) {
+    console.log("No active session to save. Start a conversation first.");
+    return;
+  }
+
+  // Save the session
+  await saveSession(
+    args,
+    sessionId,
+    session.repoContext.path,
+    session.repoContext.name,
+  );
+
+  // Unload the repo
+  const repoName = session.repoContext.name;
+  session.repoContext = null;
+  session.sessionName = null;
+  console.log(`✓ Repository "${repoName}" unloaded.`);
+  console.log("Use /load <path|url> to load a new repository.\n");
+}

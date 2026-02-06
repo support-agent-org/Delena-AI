@@ -10,7 +10,7 @@
 export function buildRepoContext(
   repoName: string,
   repoMap: string,
-  sourceFiles?: Map<string, string>
+  sourceFiles?: Map<string, string>,
 ): string {
   let context = `# Repository Analysis: ${repoName}
 
@@ -31,20 +31,23 @@ ${repoMap}
 
     for (const [filePath, content] of sourceFiles) {
       // Determine file extension for syntax highlighting
-      const ext = filePath.split('.').pop() || '';
+      const ext = filePath.split(".").pop() || "";
       const langMap: Record<string, string> = {
-        'ts': 'typescript', 'tsx': 'typescript',
-        'js': 'javascript', 'jsx': 'javascript',
-        'py': 'python',
-        'go': 'go',
-        'rs': 'rust',
-        'json': 'json',
-        'yaml': 'yaml', 'yml': 'yaml',
-        'md': 'markdown',
-        'sh': 'bash',
-        'sql': 'sql',
-        'css': 'css',
-        'html': 'html',
+        ts: "typescript",
+        tsx: "typescript",
+        js: "javascript",
+        jsx: "javascript",
+        py: "python",
+        go: "go",
+        rs: "rust",
+        json: "json",
+        yaml: "yaml",
+        yml: "yaml",
+        md: "markdown",
+        sh: "bash",
+        sql: "sql",
+        css: "css",
+        html: "html",
       };
       const lang = langMap[ext] || ext;
 
@@ -68,10 +71,7 @@ ${repoMap}
 /**
  * Builds a context message for token-efficient queries
  */
-export function buildQueryContext(
-  query: string,
-  repoContext?: string
-): string {
+export function buildQueryContext(query: string, repoContext?: string): string {
   if (!repoContext) {
     return query;
   }
@@ -87,8 +87,14 @@ ${query}`;
  */
 export function formatTokenUsage(
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
+  cost?: number,
 ): string {
   const total = inputTokens + outputTokens;
-  return `(Tokens: ${inputTokens} in / ${outputTokens} out, total: ${total})`;
+  let result = `(Tokens: ${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out, total: ${total.toLocaleString()}`;
+  if (cost !== undefined && cost > 0) {
+    result += ` | Cost: $${cost.toFixed(6)}`;
+  }
+  result += ")";
+  return result;
 }

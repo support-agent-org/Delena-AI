@@ -1,0 +1,40 @@
+Execute TypeScript/JavaScript code in a sandboxed Deno environment with access to all of OpenCode's built-in tools as async functions.
+
+Use this tool when you need to:
+- Chain multiple tool calls together with logic (loops, conditionals, error handling)
+- Process or transform tool outputs programmatically
+- Perform complex multi-step operations that would be tedious as individual tool calls
+- Run computations, data transformations, or aggregations on tool results
+
+The sandbox has access to the following functions:
+
+${signatures}
+
+## Usage Rules
+
+- Use `await` for ALL function calls — they are async.
+- Use `console.log()` to produce output — only logged values appear in the result.
+- You may use standard TypeScript/JavaScript features (variables, loops, conditionals, async/await, try/catch, etc.).
+- Do NOT import modules — only the functions listed above are available.
+- The code runs in a fresh isolate each time; there is no state between calls.
+
+## Examples
+
+Read a file and count its lines:
+```typescript
+const result = await read({ filePath: "/path/to/file.ts" });
+const lines = result.split("\n").length;
+console.log(`File has ${lines} lines`);
+```
+
+Search for a pattern and read matching files:
+```typescript
+const matches = await grep({ pattern: "TODO", include: "*.ts" });
+console.log(`Found TODOs in: ${matches}`);
+```
+
+Batch file operations:
+```typescript
+const files = await glob({ pattern: "src/**/*.test.ts" });
+console.log(`Found test files:\n${files}`);
+```

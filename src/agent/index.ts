@@ -204,13 +204,19 @@ export class SupportAgent {
     async function* gen() {
       for await (const event of events.stream) {
         const props = event.properties as any;
+        
+        // Skip events without sessionID property
+        if (!props || !("sessionID" in props)) continue;
+        
         // Only yield events for this session
-        if (props && "sessionID" in props && props.sessionID !== sessionID)
-          continue;
+        if (props.sessionID !== sessionID) continue;
+        
         yield event;
+        
         // Stop when session becomes idle
-        if (event.type === "session.idle" && props?.sessionID === sessionID)
+        if (event.type === "session.idle") {
           return;
+        }
       }
     }
     return gen();
@@ -273,8 +279,11 @@ export class SupportAgent {
 
         switch (event.type) {
           case "message.part.updated":
-            // Handle streaming text updates
-            if (props?.part?.type === "text") {
+            // Handle streaming text updates - ONLY for assistant messages
+            if (
+              props?.part?.type === "text" &&
+              props?.part?.role === "assistant"
+            ) {
               // Use delta if available, otherwise use full text
               if (props.delta) {
                 if (!hasStartedPrinting) {

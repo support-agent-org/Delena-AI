@@ -13,7 +13,7 @@ import "dotenv/config";
 import { program } from "commander";
 
 import { SupportAgent } from "./agent";
-import { loadRepository, readAllSourceFiles, buildRepoContext } from "./services";
+import { loadRepository, buildRepoContext } from "./services";
 
 interface OneShotOptions {
   repo: string;
@@ -75,42 +75,26 @@ async function runOneShot(question: string, options: OneShotOptions): Promise<vo
     if (model) {
       agent.setModel(model);
     }
-    
-    await agent.start();
 
     // Load the repository
     log(`Loading repository: ${repo}...`, quiet);
     const result = await loadRepository(repo);
-    const sourceFiles = await readAllSourceFiles(result.path);
 
     log(`Repository loaded: ${result.name} (${result.fileCount} files)`, quiet);
 
+    // Set the repository path for OpenCode to use as working directory
+    agent.setRepositoryPath(result.path);
+    
+    await agent.start();
+
     // Build context and query
-    const repoContext = buildRepoContext(result.name, result.repoMap, sourceFiles);
+    const repoContext = buildRepoContext(result.name, result.repoMap);
     const contextualQuery = `${repoContext}\n\n## User Question\n${question}`;
 
     // Run the query
     log("Processing query...", quiet);
-    
-    // Suppress streaming output in quiet/json mode
-    const originalWrite = process.stdout.write.bind(process.stdout);
-    let capturedOutput = "";
-    
-    if (quiet || json) {
-      process.stdout.write = (chunk: string | Uint8Array): boolean => {
-        if (typeof chunk === "string") {
-          capturedOutput += chunk;
-        }
-        return true;
-      };
-    }
 
     const queryResult = await agent.query(contextualQuery);
-
-    // Restore stdout
-    if (quiet || json) {
-      process.stdout.write = originalWrite;
-    }
 
     // Clean up
     await agent.stop();
@@ -132,6 +116,9 @@ async function runOneShot(question: string, options: OneShotOptions): Promise<vo
     }
 
     outputResult(response, json);
+    
+    // Force exit after output (workaround for hanging event stream)
+    process.exit(0);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     

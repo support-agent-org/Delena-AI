@@ -1,25 +1,37 @@
-# Support Agent
 
-A **read-only** CLI tool for loading and understanding codebases. Load any local or remote repository and ask questions about it using AI — interactively or via a single command for agent integration.
 
-## Features
+# Delena-AI
 
-- 📂 **Repository Loading**: Load local directories or clone remote Git repos
-- 🔒 **Read-Only Mode**: The agent cannot modify, delete, or write files
-- 💾 **Session Management**: Save and resume conversations
-- 📊 **Token Tracking**: Monitor token usage for each query
-- 🤖 **Multiple AI Models**: Support for various AI providers
-- ⚡ **One-Shot CLI Mode**: Non-interactive queries for automation and agent integration
+Delena-AI is a **read-only CLI tool** for loading and exploring codebases using AI.
+You can point it at local directories or remote GitHub repositories and **ask questions about the code** — either interactively or via a one-shot command suitable for automation or agent integration. ([GitHub][1])
 
 ---
 
-## Installation
+## 🚀 Features
+
+Delena-AI provides:
+
+✔️ Load local directories or clone remote repositories
+✔️ **Read-only AI exploration** — no modifications to source code ([GitHub][1])
+✔️ Session management (save, resume)
+✔️ Multiple AI models supported
+✔️ Token counting per query
+✔️ One-shot CLI mode for automation and agents
+✔️ JSON output for parsing in scripts or tools ([GitHub][1])
+
+---
+
+## 📦 Installation
+
+Clone the repo and install dependencies with Bun:
 
 ```bash
+git clone https://github.com/support-agent-org/Delena-AI.git
+cd Delena-AI
 bun install
 ```
 
-Set your API key in a `.env` file:
+Create a `.env` file with your AI API key:
 
 ```bash
 GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
@@ -27,169 +39,131 @@ GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
 
 ---
 
-## Usage
+## 💬 Usage
 
-### Interactive Mode
+### 🔹 Interactive Mode
 
-Start the interactive CLI for conversational code exploration:
+Start the interactive CLI:
 
 ```bash
 bun run src/index.ts
 ```
 
-### One-Shot Mode (Agent-Friendly)
+Inside the interactive prompt, you can:
 
-Run a single query without interactive prompts — perfect for automation, scripts, or integration with other AI agents:
+```
+/load ./my-project
+What are the tests in this repo?
+Explain the architecture
+```
+
+---
+
+### 🔹 One-Shot Mode (Agent-Friendly)
+
+Run a single question from the shell — ideal for scripts and automation:
 
 ```bash
 bun run query --repo <path|url> "Your question here"
 ```
 
-#### Options
+---
 
-| Flag | Description |
-|------|-------------|
-| `-r, --repo <path>` | **Required.** Local path or Git URL to repository |
-| `-j, --json` | Output structured JSON response |
-| `-m, --model <model>` | Specify model (default: `google/gemini-3.0-flash`) |
-| `-q, --quiet` | Suppress progress messages, output only the answer |
+## ⚙️ CLI Options
 
-#### Examples
+| Flag                  | Description                                          |               |
+| --------------------- | ---------------------------------------------------- | ------------- |
+| `-r, --repo <path>`   | Local directory or Git URL (required)                |               |
+| `-j, --json`          | Output structured JSON                               |               |
+| `-m, --model <model>` | AI model to use (default: `google/gemini-3.0-flash`) |               |
+| `-q, --quiet`         | Output only the answer (suppress logs)               | ([GitHub][1]) |
 
-```bash
-# Basic query
-bun run query --repo ./my-project "What does this project do?"
+---
 
-# JSON output for parsing
-bun run query --repo . --json "List all entry points"
+## 📊 JSON Output Format
 
-# Query a remote repository
-bun run query --repo https://github.com/user/repo "Explain the architecture"
-
-# Quiet mode (no progress logs)
-bun run query --repo ./src --quiet "What is the main function?"
-```
-
-#### JSON Output Format
-
-When using `--json`, the response is structured for easy parsing:
+When using `--json`, responses are formatted for easy machine parsing:
 
 ```json
 {
   "success": true,
-  "answer": "This project is a CLI-based AI assistant...",
+  "answer": "This project is ...",
   "repository": "my-project",
-  "model": "google/gemini-2.0-flash",
+  "model": "google/gemini-3.0-flash",
   "tokens": {
-    "input": 5432,
-    "output": 892,
-    "total": 6324
+    "input": 1234,
+    "output": 567,
+    "total": 1801
   }
 }
 ```
 
-Error responses:
+If the query fails:
 
-```json
+````json
 {
   "success": false,
-  "error": "Failed to load repository: path not found"
+  "error": "Failed to load repository"
 }
+``` :contentReference[oaicite:5]{index=5}
+
+---
+
+## 🧠 Interactive Commands
+
+Once inside the CLI, use:
+
+````
+
+/load <path|url>     # Load a project
+/unload              # Unload current repo
+/status              # View current context and tokens
+/save <name>         # Save session
+/resume <name>       # Resume saved session
+/sessions            # List saved sessions
+/model               # Change model/provider
+/mode <low|medium|high>  # Response depth
+/help                # List commands
+/exit                # Quit
+
+```:contentReference[oaicite:6]{index=6}
+
+---
+
+## 🗄️ Session Storage
+
+Delena-AI stores sessions and cached clones in:
+
 ```
 
----
+~/.support-agent/
 
-## Interactive Commands
+````
 
-### Repository Commands
-
-| Command | Description |
-|---------|-------------|
-| `/load <path\|url>` | Load a local directory or clone a Git repository |
-| `/unload` | Unload the current repository |
-| `/status` | Show current session status (model, repo, tokens) |
-
-### Session Commands
-
-| Command | Description |
-|---------|-------------|
-| `/save <name>` | Save the current session for later |
-| `/resume <name>` | Resume a previously saved session |
-| `/sessions` | List all saved sessions |
-| `/saveexit <name>` | Save session and unload repository |
-
-### Model Commands
-
-| Command | Description |
-|---------|-------------|
-| `/model` | Select an AI model/provider interactively |
-| `/mode <low\|medium\|high>` | Set thinking depth for responses |
-
-### General Commands
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/exit` | Exit the application |
+- `sessions.json`: session metadata  
+- `repos/`: cached cloned repositories :contentReference[oaicite:7]{index=7}
 
 ---
 
-## Example Workflow
+## 🛡️ Read-Only Policy
 
-```bash
-# Start interactive mode
-bun run src/index.ts
+Delena-AI **cannot modify code**. It can:
 
-# Load a project
-/load ./my-project
+✔️ Read files & directories  
+✔️ Clone repositories (shallow)  
+✔️ Search files using glob  
+✔️ Fetch external URLs  
 
-# Ask questions
-What does this project do?
-What are the main dependencies?
-Explain the folder structure
+Delena-AI **cannot**:
 
-# Save the session
-/save my-project-analysis
-
-# Exit
-/exit
-
-# Later, resume it
-bun run src/index.ts
-/resume my-project-analysis
-```
+❌ Write, delete, or modify files  
+❌ Execute system commands :contentReference[oaicite:8]{index=8}
 
 ---
 
-## Security
+## ⚙️ Configuration
 
-The agent operates in **READ-ONLY** mode:
-
-| Capability | Status |
-|------------|--------|
-| Read files and directories | ✅ Allowed |
-| Clone repositories (shallow clone) | ✅ Allowed |
-| Use glob to search for files | ✅ Allowed |
-| Fetch external URLs | ✅ Allowed |
-| Write, modify, or delete files | ❌ Blocked |
-| Execute shell commands | ❌ Blocked |
-
----
-
-## Data Storage
-
-Session data and cached repositories are stored in `~/.support-agent/`:
-
-| Path | Contents |
-|------|----------|
-| `sessions.json` | Saved session metadata |
-| `repos/` | Cached cloned repositories |
-
----
-
-## Configuration
-
-The agent is configured via `opencode.json`. Key settings:
+Customize behavior using `opencode.json` settings. Example:
 
 ```json
 {
@@ -206,10 +180,37 @@ The agent is configured via `opencode.json`. Key settings:
     }
   }
 }
-```
+``` :contentReference[oaicite:9]{index=9}
 
 ---
 
-## License
+## 📈 Supported Models & Providers
 
-MIT
+Delena-AI works with multiple AI backends and models — set via CLI or config.  
+Default is `google/gemini-3.0-flash`, but you can switch to other supported models. :contentReference[oaicite:10]{index=10}
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! To contribute:
+
+1. Fork the repository  
+2. Create a branch (`git checkout -b feature/xyz`)  
+3. Commit your changes  
+4. Push to your fork  
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is released under the **MIT License**. :contentReference[oaicite:11]{index=11}
+
+---
+
+If you want, I can also generate **badges (build status / stars / downloads)** and a **Table of Contents** for the README!
+::contentReference[oaicite:12]{index=12}
+````
+
+[1]: https://github.com/support-agent-org/Delena-AI "GitHub - support-agent-org/Delena-AI"
